@@ -33,12 +33,12 @@ Lưu kết quả, seed, mã SHA, số lần `mutation.applied`, cáo buộc `VER
 ## Tạo gói nộp
 
 ```bash
-make submit TEAM=<ten-doi>
+make submit TEAM=VuHieuThien
 ```
 
-Lệnh tạo `submissions/<ten-doi>.bundle`. Sau đó, tạo thư mục `K4-DAY26-TenNhom/` và đặt bundle cùng `TEAMMATES.md` trong đó.
+Lệnh tạo `submissions/VuHieuThien.bundle`. Tệp thành viên đã nằm tại `K4-DAY26-VuHieuThien/TEAMMATES.md`. Sau khi tạo bundle hợp lệ, chép nó vào thư mục này bằng `cp submissions/VuHieuThien.bundle K4-DAY26-VuHieuThien/`. Chỉ nộp khi cả hai tệp đều có mặt và bundle chứa manifest đúng quy định.
 
-Nội dung `TEAMMATES.md` phải ghi họ tên đầy đủ và mã số sinh viên của từng người. Chỉ điền dữ liệu thật do các thành viên xác nhận. Giảng viên quyết định số thành viên và nơi nộp; hai thông tin này chưa được cung cấp trong repository.
+Đã xác nhận một thành viên: **Vũ Hiếu Thiên, MSSV 2A202602867**. Không tự thêm thành viên khác. Số người bắt buộc và nơi nộp cần đối chiếu thông báo của giảng viên.
 
 ## Sáu điều kiện kết thúc
 
@@ -47,6 +47,6 @@ Nội dung `TEAMMATES.md` phải ghi họ tên đầy đủ và mã số sinh vi
 - [ ] `make validate` không có `FAIL` trên world chính thức
 - [ ] `git status -- kit bots fixtures` không báo thay đổi trái phép
 - [ ] Bundle được tạo thành công và kiểm tra được manifest
-- [ ] Thư mục nộp có `TEAMMATES.md` đủ thông tin và đúng tên đội
+- [ ] Thư mục `K4-DAY26-VuHieuThien/` có `TEAMMATES.md` và `VuHieuThien.bundle` hợp lệ
 
 Không đưa trace của đội đối thủ cho trợ lý AI khi thi. Chỉ được dùng trace của đội mình và bộ mẫu công khai để sửa lỗi.

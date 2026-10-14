@@ -1,6 +1,8 @@
 # Báo cáo kiểm tra và hoàn thiện bài thực hành Day 26
 
 **Ngày rà soát:** 15/10/2026  
+**Tên nhóm dùng khi đóng gói:** `VuHieuThien`  
+**Thành viên đã xác nhận:** Vũ Hiếu Thiên — `2A202602867`  
 **Kho mã:** `Soraishiro/Day26-Colosseum-Agent-Arena-Kit`  
 **Phạm vi:** tác nhân phòng thủ, bộ bài tấn công, bộ công tố và quy trình nộp bài.
 
@@ -46,6 +48,9 @@ Có hai giới hạn. Thứ nhất, chi phí dự tính theo một hàng trả v
 
 **Chưa xác nhận:** bản đấu thật có gọi các hàm kiểm tra đầu ra trước khi tạo sự kiện `answer` hay không. Chạy tốt từng hàm chưa đủ để khẳng định các lớp `guardrail_breach`, `privacy_leak` và `unsupported_precision` đã được ngăn trong mọi phiên.
 
+
+**Sửa lỗi sau đợt rà soát:** Bộ quét đã bổ sung nhận diện vai trò hệ thống giả và kết quả công cụ giả. Bộ che dữ liệu xử lý cả giá trị riêng tư ngắn nếu được cung cấp rõ ràng, hoặc giá trị dưới nhãn token/mật khẩu. Phần số học không chỉ kiểm tra kết quả phép tính mà còn yêu cầu toán hạng có trong tài liệu nguồn khi đối chiếu, đồng thời tránh chứng nhận đúng khi nguồn phủ định hoặc chỉ đưa số gần đúng. Một lỗi cụ thể ở biểu thức nhận số cuối câu đã được tái hiện và sửa. Những thay đổi này nâng độ bao phủ cho các trường hợp đã xác định, nhưng không thể bảo đảm không còn lỗi nhận diện sai trong ngôn ngữ tự nhiên.
+
 ### 3.2. Bộ bài tấn công — Task 1, bước 6
 
 Bộ bài hiện có 10 lá tấn công và 4 lá bình thường. Phân bố của 10 lá tấn công là 4 MCP, 2 Gateway và 4 A2A; cả chín lớp đều có đại diện. Danh sách chơi chọn chín lá tấn công thuộc chín lớp và một lá bình thường ở lượt thứ sáu. Lá `atk_10` là lá dự bị.
@@ -80,7 +85,7 @@ Chín lớp tất định dựa vào trạng thái lệnh và dấu vết. Tám 
 
 `kit/submit.py` chỉ đóng gói `agent/`, `deck/` và `eval/`, kèm bảng kiểm tra mã băm của `kit/`. Các chương trình phân tích và gỡ lỗi được thêm ở thư mục gốc không nằm trong bundle. Chúng nên được phân loại hoặc dọn riêng sau khi đối chiếu, nhưng không cần thay đổi `kit/`, `bots/`, `fixtures/`.
 
-Một lần nộp hợp lệ vẫn cần `make test`, `make validate`, `make submit TEAM=<ten-doi>`, kiểm tra bundle và thư mục `TEAMMATES.md`. Tôi chưa có tên đội, họ tên và MSSV đầy đủ nên không thể tạo danh sách thành viên đúng sự thật.
+Một lần nộp hợp lệ vẫn cần `make test`, `make validate` và `make submit TEAM=VuHieuThien`. Đã tạo `K4-DAY26-VuHieuThien/TEAMMATES.md` cho thành viên Vũ Hiếu Thiên, mã số sinh viên `2A202602867`. Chưa có bundle vì chương trình đóng gói phải kiểm tra bộ world chính thức trước khi tạo tệp. Số thành viên tối thiểu và địa chỉ nộp bài do giảng viên công bố; hiện chưa có dữ liệu để xác nhận.
 
 ## 4. Bằng chứng hiện có và giới hạn xác minh
 
@@ -100,7 +105,7 @@ Kilo Code báo cáo điểm đấu với ba đối thủ:
 
 Đây là các kết quả mô phỏng từ `MockBroker`. Không có đủ nhật ký để đối chiếu số lượt kích hoạt, các cáo buộc bị bỏ qua và tỷ lệ chặn nhầm. Riêng báo cáo trận Adversary còn ghi “chịu 12 sát thương ở một vòng” trong khi tổng cuối là 8; phải kiểm tra lại đơn vị và cách tính trước khi dùng số liệu này trong báo cáo nộp.
 
-Các kết quả trên được ghi nhận **trước khi thay đổi thêm phần guardrails và prompt**. Nhóm đã bổ sung 14 kiểm tra hồi quy mới trong `agent/test_guardrails_regressions.py`. Chưa có đầu ra lệnh chạy nào chứng minh những kiểm tra mới này đạt.
+Các kết quả trên được Kilo Code báo cáo **trước những thay đổi guardrails mới trên remote**. Hiện tệp `agent/test_guardrails_regressions.py` chứa 22 phép kiểm tra, gồm 14 trường hợp trước đây và tám trường hợp bổ sung. Các trường hợp mới kiểm tra việc giả mạo vai trò hệ thống, kết quả công cụ giả, dữ liệu bí mật ngắn, cách xử lý phép tính và mức độ chính xác của số liệu. Chưa có đầu ra chạy Python độc lập trên đúng commit mới nhất để xác nhận cả 22 phép kiểm tra đạt.
 
 ## 5. Ưu điểm, hạn chế và nguyên nhân
 
@@ -116,12 +121,12 @@ Các kết quả trên được ghi nhận **trước khi thay đổi thêm ph�
 |---|---|---|
 | `make doctor` | Chưa có đầu ra đầy đủ | Xác nhận world hợp lệ, không có `truth.json` |
 | `make test` | Kilo báo một lỗi, bảy bỏ qua | Xác định tên và nguyên nhân lỗi; chạy lại |
-| Kiểm tra hồi quy mới | Chưa có kết quả | Chạy đủ 27 trường hợp: 5 công tố, 8 Gateway, 14 guardrails |
+| Kiểm tra hồi quy mới | Đã soạn, chưa có đầu ra thực thi | Chạy đủ 35 trường hợp: 5 công tố, 8 Gateway, 22 guardrails |
 | `make validate` | Chưa có nhật ký trên world chính thức | Lưu đầu ra `PASS/WARN/FAIL` |
 | Kiểm tra `ANSWER` | Chưa thấy đầu ra tích hợp | Kiểm tra nguồn dẫn và cách xử lý `Note:` độc hại |
 | Kết quả đấu thử | Có số liệu từ Kilo Code | Lưu kết quả từng vòng, seed, SHA và nhật ký |
 | Thư mục cấm | Chưa thấy thay đổi chủ ý | Chạy `git status -- kit bots fixtures` |
-| Bundle và thành viên | Chưa có bằng chứng | Tạo bundle và `TEAMMATES.md` đúng thông tin |
+| Bundle và thành viên | Có `TEAMMATES.md`, chưa có bundle | Chạy `make submit TEAM=VuHieuThien`; kiểm tra và chép bundle vào `K4-DAY26-VuHieuThien/` |
 
 Lệnh kiểm tra đề nghị:
 
@@ -140,7 +145,7 @@ make spar BOT=rookie AS=all
 make spar BOT=operator AS=all
 make spar BOT=adversary AS=all
 git status -- kit bots fixtures
-make submit TEAM=<ten-doi>
+make submit TEAM=VuHieuThien
 ```
 
 Tại máy đã có world, lưu đầu ra các lệnh vào tệp, kèm mã commit và phiên bản dữ liệu. Không đưa nhật ký của đội đối thủ cho trợ lý AI trong lúc thi, đúng quy định `RULES.md`.
@@ -149,7 +154,7 @@ Tại máy đã có world, lưu đầu ra các lệnh vào tệp, kèm mã commi
 
 Bản mã đã có đủ ba thành phần mà bài thực hành yêu cầu. Phần công tố có đầy đủ hàm phát hiện và cho kết quả tốt theo số liệu Kilo Code báo cáo trên bộ mẫu. Phần Gateway đã ngăn được nhiều dạng lệnh sai quyền hoặc sai giao thức. Bộ bài có đủ cơ cấu thẻ và đa dạng cách tác động.
 
-Tuy vậy, vẫn còn một bài kiểm thử tổng thể thất bại chưa được giải thích, chưa có kết quả kiểm tra mới sau khi bổ sung guardrails, chưa chứng minh bước bảo vệ đầu ra được gọi trong phiên đấu và chưa có hồ sơ nộp hoàn chỉnh. **Vì vậy, trạng thái phù hợp là “đã triển khai, chưa hoàn tất nghiệm thu”.** Không nên dùng cụm “sẵn sàng cho môi trường sản xuất” khi các điều kiện này chưa được kiểm chứng.
+Tuy vậy, vẫn còn một bài kiểm thử tổng thể thất bại chưa được giải thích, chưa có kết quả kiểm tra mới sau khi bổ sung guardrails, chưa chứng minh bước bảo vệ đầu ra được gọi trong phiên đấu và đã có danh sách thành viên nhưng chưa tạo được bundle. **Vì vậy, trạng thái phù hợp là “đã triển khai, chưa hoàn tất nghiệm thu”.** Không nên dùng cụm “sẵn sàng cho môi trường sản xuất” khi các điều kiện này chưa được kiểm chứng.
 
 Báo cáo áp dụng cách viết câu ngắn, một ý chính mỗi câu và dùng thuật ngữ nhất quán theo tinh thần văn bản kỹ thuật dễ đọc. Đây không phải văn bản chứng nhận tuân thủ ASD-STE100, vì ASD-STE100 là tiêu chuẩn tiếng Anh kỹ thuật.
 

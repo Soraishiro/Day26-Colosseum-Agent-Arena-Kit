@@ -10,7 +10,7 @@ Thư mục `agent/` chứa quy tắc xử lý lệnh công cụ và các phép k
 | `telemetry.py` | Lưu sự kiện nội bộ để tìm nguyên nhân lỗi | Nhật ký riêng không thay thế sự kiện L1 của trọng tài |
 | `prompt.md` | Hướng dẫn mô hình chọn công cụ và trình bày câu trả lời | Chỉ có hiệu lực khi được ghép vào thông điệp hệ thống |
 | `test_gateway_regressions.py` | Kiểm tra quyền, mã thuê, A2A và chi phí | Bài kiểm thử đơn vị, không phải kết quả đấu |
-| `test_guardrails_regressions.py` | Kiểm tra phát hiện chỉ thị, che dữ liệu và xử lý số liệu | Không chứng minh khả năng ngăn mọi kiểu tấn công |
+| `test_guardrails_regressions.py` | 22 trường hợp kiểm tra phát hiện chỉ thị, che dữ liệu và xử lý số liệu | Không chứng minh khả năng ngăn mọi kiểu tấn công |
 
 ## Giới hạn quyền truy cập
 
