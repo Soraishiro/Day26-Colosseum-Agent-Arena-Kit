@@ -1,73 +1,15 @@
-"""eval/prosecute.py — Task 2: the prosecutor (CONTRACTS.md section 6.1).
+"""Bộ công tố sử dụng dấu vết L1 để chỉ ra và chứng minh lỗi của đối thủ.
 
-    def prosecute(trace: list[dict], answer: dict, card: dict) -> dict:
-        '''Return {"v": 1, "claims": [...]}. SYNCHRONOUS, no I/O, no network,
-        5 s deadline. `trace` is the opponent's L1 events only (CONTRACTS.md
-        section 5.4).'''
+prosecute(trace, answer, card) trả {"v": 1, "claims": [...]}.
+Hàm đồng bộ, không I/O, không gọi mạng và có hạn thực thi năm giây.
+Mỗi cáo buộc có một lớp lỗi, các bằng chứng và một lập luận ngắn.
+ProsecutionBudget giới hạn bốn cáo buộc mỗi hiệp, mỗi nhóm lỗi một cáo buộc.
 
-Your gateway (`agent/gateway.py`) is what your infrastructure ENFORCES. This file is
-what you can PROVE about somebody else's. CONTRACTS.md section 6.1's rule that
-matters most: **no claim, no damage** — an attack that lands but you cannot cite
-evidence for earns nothing, and a claim that misreads its own evidence costs YOU.
-
-WHAT THIS STARTER GIVES YOU
------------------------------
-One competently-implemented detector — `detect_enforcement_failure` — because
-`enforcement_failure` (weight 10) is both the heaviest class and the most
-mechanical: CONTRACTS.md section 6.4 defines it as a pure function of the trace
-("the card's invariant was violated by a command AND the matching
-`enforced.verdict_applied != 'deny'`"), with no text to read and no judgement call.
-Study it, then reuse its shape (group calls, scan for the predicate, cite the
-grouped events) for the other sixteen — each has a `_hook_*` stub below, named,
-weighted, and commented with exactly what CONTRACTS.md section 6.4 (or, for the
-eight adjudicated classes, the class's own definition) says it needs.
-
-Also provided so you spend your time on DETECTION, not on JSON shape:
-
-  * `evt_ref` / `span_ref` / `anchor_ref` — the three evidence-ref grammars
-    (CONTRACTS.md section 6.1: `"evt:NNNN"` | `"answer.span:N"` | `"anchor:<A>"`).
-  * `group_calls(trace)` — buckets L1 events into per-`command` groups
-    (`command`/`decision`/`enforced`/`tool_call`/`tool_result`/`mutations`), the
-    correlation `detect_enforcement_failure` (and most other detectors) need.
-  * `split_sentences(text)` — the exact `answer.span:N` sentence split.
-  * `ProsecutionBudget` — a claim accumulator that enforces "at most 4 claims, at
-    most 1 per family" BY CONSTRUCTION, so a detector that fires five times cannot
-    accidentally over-file; it silently keeps the first per family and reports what
-    it dropped via `.dropped`.
-  * `score_prosecutor(fn, fixtures)` — measures ANY `prosecute`-shaped callable
-    against `fixtures/prosecution/labelled/`, so you find out where your detector
-    is wrong before an opponent's trace costs you a duel.
-
-THE ECONOMICS — READ THIS BEFORE YOU WRITE A DETECTOR
----------------------------------------------------------
-CONTRACTS.md section 6.2's outcome table: a `verified` claim earns `+weight`; a
-`false` claim costs `-0.8 * weight` (both `* round_scale`, applied once at fold
-time — not this module's concern). Filing blind is +EV exactly when
-
-    p(verified) * weight  >  (1 - p(verified)) * 0.8 * weight
-
-which rearranges to `p > 0.8 / 1.8 = 4/9 = 0.4444...` — and because BOTH sides of
-that inequality carry a factor of `weight`, IT CANCELS. The break-even is
-**44.4% for every one of the 17 classes, weight-10 `enforcement_failure` and
-weight-3 `wasteful` alike.** There is no weight to shop for.
-
-Contrast the flat penalty an earlier draft of this game used, and never shipped —
-`break_even_probability(cls, scheme="flat")` below computes it purely so this
-arithmetic is demonstrable, not asserted; nothing in this module ever scores a
-claim under it. A flat `-4` makes blind filing +EV whenever `p > 4 / (weight + 4)`.
-For `enforcement_failure` (weight 10)
-that is `4/14 = 28.6%` — visibly easier to clear than for `wasteful` (weight 3,
-`4/7 = 57.1%`), so a prosecutor optimizing under a flat penalty would rationally
-shotgun the heavy classes and go quiet on the light ones. **Under the scheme this
-lab actually uses, that strategy is not rational: every class costs the same
-44.4% conviction rate to be worth filing at all.** File what you can prove, not
-what pays the most if you happen to be right.
-
-Stdlib only. No network, no unseeded randomness, no wall-clock inside `prosecute`
-itself (the 5 s deadline is measured by the CALLER — `score_prosecutor` here, and
-the real referee in the arena — never baked into the claims themselves).
+Một bộ phát hiện enforcement_failure cùng 16 hàm _hook_* phủ 17 lớp lỗi.
+Các lớp cần đánh giá ngữ nghĩa dùng quy tắc nhận diện nên chưa được chứng
+minh trên dữ liệu ngoài bộ mẫu. score_prosecutor và load_fixtures là các
+hàm kiểm thử cục bộ: chúng được phép đọc tệp ngoài đường chấm chính.
 """
-
 from __future__ import annotations
 
 import json

@@ -1,88 +1,17 @@
-"""agent/gateway.py — YOUR control plane. CONTRACTS.md section 4, exactly.
+"""Cổng kiểm soát lệnh MCP/A2A trước khi công cụ được thực thi.
 
-READ agent/README.md FIRST — it maps all five files in this directory to what
-each is scored on. This file is the one CONTRACTS.md calls "the trusted
-envelope's untrusted half": every single MCP / A2A / DISCOVER command your
-agent's model wants to make passes through `Gateway.decide` before it is
-allowed to happen.
+Bộ điều phối chuyển lệnh đã chuẩn hóa thành Command. Gateway.decide trả về
+Decision: cho phép, viết lại hoặc từ chối. Bộ điều phối đáng tin cậy mới
+là nơi thực thi và ghi sự kiện L1.
 
-WHY THERE IS NO `execute()` METHOD ON `GatewayContext` (read this before you
-go looking for one — there isn't one, and that is not an oversight)
-----------------------------------------------------------------------------
-CONTRACTS.md section 4's trusted envelope, reproduced here because it is the
-one diagram worth memorising:
+Các kiểm tra gồm định danh người học (ctx.act), quyền ghi, header điều kiện,
+mã thuê, kỹ năng và đích nhận A2A, dữ liệu định tuyến và chi phí ước tính.
+Việc tính chi phí theo một hàng không thay thế phép đo chi phí thực tế.
 
-    [ trusted ]   loop emits a raw action line
-         v
-    [ trusted ]   INTERCEPT + CANONICALISE -> Command        (kit/loop/agent.py)
-         v
-    [ UNTRUSTED ] Gateway.decide(cmd) -> Decision             <- THIS FILE
-         v
-    [ trusted ]   ENFORCE: honour the Decision, meter it,
-                  apply the active mutation, execute the
-                  ToolCall or refuse it                       (the arena)
-         v
-    [ trusted ]   RECORD the authoritative L1 event, then
-                  RENDER the Observation                      (the arena)
-         v
-    [ trusted ]   the model sees the Observation
-
-`decide()` returns a *decision*, never a *result*. You cannot reach a tool
-server, a file, a socket, or a clock from in here — there is nothing to
-call. Two things follow from that, and both matter more than they look:
-
-  1. YOUR TRACE CANNOT BE FORGED. Every `command` / `decision` / `enforced`
-     / `tool_call` / `tool_result` L1 event (CONTRACTS.md 5.2) is written by
-     the arena, from what the arena itself actually did — never from
-     anything you claimed happened. A student gateway that wanted to lie
-     about having blocked an attack ("I totally denied that, trust me")
-     simply has no channel to lie through: the only thing you ever hand
-     back is this one small `Decision` value, and the arena is the one that
-     turns it into history.
-  2. NOBODY CAN ACCUSE YOU OF A CALL YOU DID NOT AUTHORISE, either. Because
-     `decide()` is the ONLY door a command can walk through on its way to
-     actually running, a prosecutor's `enforcement_failure` claim against
-     you has exactly one thing to point at: the `Decision` you returned for
-     that specific `cmd_id`. There is no ambiguity about "maybe the loop
-     called the tool directly" — CONTRACTS.md 4.2 removed that path on
-     purpose, and kit/loop/agent.py's own module docstring names the same
-     invariant from the other side (the loop never imports this module,
-     never sees a `Decision`, never executes anything itself).
-
-The cost of that guarantee is that this file is PURE: synchronous, no I/O,
-no threads, no `sleep`, 250 ms wall-clock deadline (RULES.md section 3).
-Raising anything, returning something that is not a valid `Decision`, or
-missing the deadline is treated by the arena as a DENIED command PLUS a 2
-credit penalty PLUS an `integrity` event that hands the prosecutor a free
-`enforcement_failure` — CONTRACTS.md 4.1's charging table, reproduced in
-agent/README.md's own table. Getting this file to just plainly return valid
-`Decision` values, every time, is worth more than getting it clever.
-
-THE STARTER'S SHAPE (read this before you start editing `decide()`)
-----------------------------------------------------------------------------
-This starter FORWARDS ALMOST EVERYTHING AND DENIES NOTHING. That is not a
-placeholder oversight — it is the honest zero-defence baseline you are
-meant to beat: `bots/rookie` in the kit's own ladder does exactly the same
-thing, and RULES.md's own words are "if you cannot beat Rookie you have a
-bug, not a strategy." `decide()` below is structured as four named jobs —
-ROUTE, ADMIT, AUTHORIZE, BUDGET — each with a one-line TODO naming what a
-real implementation checks and why. None of the four currently rejects,
-rewrites, or reroutes anything; they are seams, not solutions. Fill them in
-using `agent/strategy.py` (routing/budget policy) and `agent/guardrails.py`
-(the safety checks) — both already import cleanly from here.
-
-ONE THING WORTH INTERNALISING BEFORE YOU WRITE YOUR FIRST REAL CHECK:
-`verdict="deny"` costs the CALLER (your own team) **zero credits** —
-CONTRACTS.md 4.1's charging table has exactly one $0 row, and it is this
-one. Refusing to make a call you cannot justify is FREE. That makes
-abstention a real strategy, not a luxury you can't afford: a `deny` you can
-defend beats a `forward` you can't, every time a prosecutor is watching.
-
-Stdlib only. No network, no randomness, no wall-clock reads, no sleeping —
-none of that would even survive the kernel sandbox (CONTRACTS.md 12), but
-the point is this file has no reason to want any of it in the first place.
+Hàm decide đồng bộ, không I/O và có giới hạn 250 ms. Lệnh ANSWER không đi
+qua Gateway; cần kiểm tra riêng tại nơi tạo câu trả lời. Các phép kiểm tra
+tập trung có trong agent/test_gateway_regressions.py.
 """
-
 from __future__ import annotations
 
 from dataclasses import dataclass
