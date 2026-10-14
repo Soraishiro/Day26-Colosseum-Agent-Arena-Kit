@@ -5,7 +5,11 @@ Hãy thực hiện các bước dưới đây trên máy đã có Python 3.12 v�
 ## Kiểm tra mã và dữ liệu
 
 ```bash
-git pull --ff-only origin main
+git fetch origin
+git status -sb
+git log --oneline --left-right HEAD...origin/main
+# Nếu máy còn commit riêng, lưu công việc và tích hợp origin/main
+# bằng rebase hoặc merge. Xử lý xung đột trước khi kiểm thử.
 git status -- kit bots fixtures
 make install
 make doctor
@@ -17,6 +21,8 @@ python3.12 -m unittest \
 python3.12 run_score.py
 make validate
 ```
+
+Commit `45afbec` mà Kilo Code từng báo cáo chưa xuất hiện trên GitHub ở thời điểm kiểm tra. Nếu máy có commit này, không dùng `git reset --hard` hoặc `git push --force` để đồng bộ. Đối chiếu thay đổi, giải quyết xung đột rồi ghi lại SHA cuối cùng trước khi chạy kiểm thử. Chỉ tiếp tục khi mã cục bộ đúng với phiên bản dự kiến nộp.
 
 Nếu có một bài kiểm thử thất bại, ghi tên bài kiểm thử, thông báo lỗi và mã SHA. Không ghi “tất cả đạt” khi vẫn có một bài thất bại. Nếu `make validate` báo `WARN`, đọc nguyên nhân và xem nhật ký đấu; `WARN` không thay thế `PASS` của từng luật cơ học.
 
