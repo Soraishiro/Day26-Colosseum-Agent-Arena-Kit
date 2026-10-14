@@ -221,7 +221,7 @@ class ArithmeticCheckResult:
     detail: str
 
 
-_NUMBER_RE = re.compile(r"(?<![\w.])-?\d+(?:\.\d+)?(?![\w.])")
+_NUMBER_RE = re.compile(r"(?<![\w.])-?\d+(?:\.\d+)?(?!\w|\.\d)")
 _EQUATION_RE = re.compile(
     r"(?<!\w)(-?\d+(?:\.\d+)?)\s*([+\-*/×÷])\s*"
     r"(-?\d+(?:\.\d+)?)\s*=\s*(-?\d+(?:\.\d+)?)(?!\w)"
