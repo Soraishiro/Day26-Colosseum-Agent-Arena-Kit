@@ -1,140 +1,47 @@
-# TASK 2 · PROSECUTE — `eval/prosecute.py`
+# Công tố — Task 2
 
-> **Không chỉ ra được thì không có sát thương.** Một đòn tấn công của bạn dù trúng đến đâu, nếu
-> đối thủ không nêu được bằng chứng thì trọng tài không chấm điểm gì cả. Và ngược lại: khi BẠN là
-> bên cáo buộc, việc bạn phải làm không phải là "tìm ra lỗi" mà là **chứng minh nó, đúng sự kiện,
-> đúng lớp lỗi, trong ngân sách 4 cáo buộc**.
->
-> *No claim, no damage. When YOU are the prosecutor, the job is not "find a defect" — it is proving
-> one, against the right event, under the right class, inside a 4-claim budget.*
+`eval/prosecute.py` nhận dấu vết L1, câu trả lời cuối và lá bài. Hàm `prosecute(trace, answer, card)` trả về một đối tượng JSON có `v=1` và danh sách `claims`. Khi trọng tài gọi hàm, mã không được đọc tệp, gọi mạng hoặc tạo tác vụ nền. Giới hạn thực thi là 5 giây.
 
-This is Task 2. Your gateway (`agent/gateway.py`) is what your infrastructure **enforces**. This
-file is what you can **prove** about somebody else's. You will receive the opponent's authoritative
-L1 gateway trace (CONTRACTS.md §5.4 — their events only, `own_telemetry` stripped, their final
-`answer` included) and file claims against it.
+## Một cáo buộc cần những gì?
 
-```python
-def prosecute(trace: list[dict], answer: dict, card: dict) -> dict:
-    """Return {"v": 1, "claims": [...]}. SYNCHRONOUS, no I/O, no network, 5 s deadline."""
-```
+Mỗi cáo buộc chỉ nêu một lớp lỗi và có năm trường: `cls`, `evidence`, `expected`, `observed`, `argument`. `argument` dài tối đa 400 ký tự. Bằng chứng được viết theo ba dạng: `evt:NNNN`, `answer.span:N` hoặc `anchor:<định-danh>`.
 
-## What's already here
+`ProsecutionBudget` giữ giới hạn tối đa bốn cáo buộc trong một hiệp và tối đa một cáo buộc trong mỗi nhóm A–E. Cần dẫn đúng sự kiện. Một cáo buộc đúng lớp nhưng chỉ sai sự kiện có thể bị đánh giá là chưa đủ chứng cứ.
 
-| Piece | What it does |
-|---|---|
-| `RUBRIC` / `family_of` / `weight_of` | The 17 classes, 5 families, weights — read from the vendored `kit/referee/rubric.py` once it lands, a local fallback copy until then. Same numbers either way. |
-| `evt_ref` / `span_ref` / `anchor_ref` | The three evidence-ref grammars: `"evt:0412"` \| `"answer.span:3"` \| `"anchor:Frame:…"`. |
-| `group_calls(trace)` | Buckets the L1 trace into per-`command` groups (`command`/`decision`/`enforced`/`tool_call`/`tool_result`/`mutations`) — the correlation almost every detector needs. |
-| `split_sentences(text)` | The exact `answer.span:N` split. |
-| `ProsecutionBudget` | A claim accumulator. `try_add(...)` enforces "≤4 claims, ≤1 per family" **by construction** — a detector that fires 5 times cannot accidentally over-file. Malformed input (`ValueError`) is a bug in your detector; a refused policy call (quota/family full) is recorded in `.dropped`, not an error. |
-| `detect_enforcement_failure` | **The one competently-implemented detector.** Read it before writing your own — it is the template. |
-| 16 named `_hook_*` stubs | One per remaining class, each a `return []` with a docstring naming exactly what CONTRACTS.md §6.4 (or the class's own definition, for the 8 adjudicated classes) says it needs. |
-| `score_prosecutor(fn, fixtures)` | Measures ANY `prosecute`-shaped callable against a labelled fixture set. Run it against your own work before you ever point it at an opponent. |
+## Mã hiện có
 
-## Why only one detector ships
+Hàm `detect_enforcement_failure` và 16 hàm `_hook_*` cùng phục vụ 17 lớp lỗi. Các hàm trả về cặp gồm danh sách bằng chứng và lập luận. `prosecute()` gọi chúng và thêm kết quả qua `ProsecutionBudget.try_add`.
 
-`enforcement_failure` (weight **10**, the heaviest class) is also the most mechanical: CONTRACTS.md
-§6.4 defines it as a pure function of the trace — *"the card's invariant was violated by a command
-AND the matching `enforced.verdict_applied != 'deny'`"* — no text to read, no judgement call. Study
-`detect_enforcement_failure`'s shape (group calls → scan for the predicate → cite the command +
-`enforced` pair together) and reuse it. The 9 deterministic classes (CONTRACTS.md §6.3) are all
-reachable this way; the 8 adjudicated classes (`ungrounded`, `hallucination`, `guardrail_breach`,
-`unflagged_conflict`, `incoherent`, `overreach`, `non_responsive`, `unsupported_precision`) need
-reading the answer's actual meaning — a real referee sends those to one blind model call
-(`referee/adjudicate.py`, arena-only); your own detector can still flag a plausible instance and let
-the claim's `argument` make the case.
+Nhóm hạ tầng kiểm tra lệnh, quyết định và kết quả thực thi. Các nhóm còn lại kiểm tra sự nhất quán, nguồn dẫn, dữ liệu riêng tư, phạm vi trả lời và chi phí. Những lớp cần hiểu ý nghĩa câu văn vẫn dùng một số quy tắc nhận diện, nên có nguy cơ bỏ sót câu diễn đạt khác hoặc nhận sai trường hợp hợp lệ.
 
-## Developing your own detector
+`_hook_stale_read` hiện **không đọc `drift.json`** khi chấm. Nó sử dụng các trường phiên bản và nguồn đã được cung cấp. Trường hợp đầu vào không có bằng chứng cần thiết sẽ không bị cáo buộc theo quy tắc này. Không sửa hàm thành phiên bản đọc tệp trong `prosecute()`, vì như vậy vi phạm yêu cầu không I/O.
 
-1. Pick a stub in `_HOOKS` (say `_hook_wasteful`). Read its docstring — it names the CONTRACTS.md
-   rule it must implement, and honestly says what a trace-only prosecutor can and cannot reach.
-2. Implement it returning `[(evidence_refs, argument), ...]`, same shape as
-   `detect_enforcement_failure`.
-3. Wire it into `prosecute()`'s loop (add its calls to `budget.try_add(...)`, same pattern as the
-   `enforcement_failure` block above the loop).
-4. Rerun `score_prosecutor` and watch your `recall` for that class move off 0.0 — and watch
-   `false_claim_rate` and `precision` to make sure you did not trade recall for false claims.
+## Kiểm tra bằng bộ mẫu
+
+Thư mục `fixtures/prosecution/labelled/` có 40 trường hợp: 34 trường hợp mang một trong 17 lớp lỗi và sáu trường hợp sạch. Trong mỗi lớp có trường hợp rõ ràng và trường hợp dễ dẫn sai sự kiện. Đây là dữ liệu dùng để phát triển và kiểm tra hồi quy. Không dùng điểm trên bộ mẫu để khẳng định khả năng tổng quát với trọng tài chính thức.
+
+Chạy các lệnh sau tại thư mục gốc:
 
 ```bash
-python -m eval.prosecute            # scores the starter against fixtures/prosecution/labelled/
-python -m pytest tests/test_prosecute.py -v
+python3.12 -m pytest tests/test_prosecute.py -v
+python3.12 -m unittest eval.test_runtime_regressions -v
+python3.12 run_score.py
+make spar BOT=adversary AS=prosecutor
 ```
 
-## `score_prosecutor` — measure yourself before a duel does
+`run_score.py` gọi `load_fixtures()` để **đọc dữ liệu khi kiểm thử**. Việc đọc này nằm ngoài hàm được trọng tài chấm. Trong phiên đấu, chỉ `prosecute()` phải không I/O.
 
-```python
-from eval.prosecute import prosecute, score_prosecutor, load_fixtures
+Báo cáo Kilo Code ghi 34 cáo buộc được xác minh, không có cáo buộc sai, precision và recall bằng 1,00 trên bộ mẫu. Cần giữ lại đầu ra lệnh và SHA để kiểm chứng. Phần còn thiếu là phép đo trên các tình huống mới, không dùng khi điều chỉnh quy tắc.
 
-report = score_prosecutor(prosecute, load_fixtures())
+## Chi phí buộc tội sai
+
+Cáo buộc đúng nhận `trọng số × hệ số vòng`. Cáo buộc sai mất `0,8 × trọng số × hệ số vòng`. Với xác suất đúng là `p`, việc nộp có lợi khi:
+
+```text
+p × trọng số > (1 − p) × 0,8 × trọng số
+p > 4/9 ≈ 44,4%
 ```
 
-Returns `{"precision", "recall", "f1", "false_claim_rate", "per_class": {...}, ...}`. It is a
-**local, deterministic approximation** of the real referee's gate 1 (CONTRACTS.md §6.1–6.2), scored
-against each fixture's authored ground truth rather than a live detector run or a model call — this
-kit has no model access at all (zero-key, `MockBroker` only), so the 8 adjudicated classes are
-approximated the same evidence-matching way as the 9 deterministic ones. It is not a promise of the
-exact number the real referee will hand you, but the failure shapes it catches are the real ones.
+Ngưỡng này áp dụng cho cả 17 lớp. Mức độ tin cậy của chứng cứ quan trọng hơn việc chọn lớp có trọng số lớn.
 
-**Definitions, all 0.0 on a zero denominator (never a crash):**
-
-| Metric | Formula | Reads as |
-|---|---|---|
-| `precision` | `verified / adjudicated` | of the claims that were legitimate enough to be judged, how many actually proved what they claimed |
-| `recall` | `verified / (total real defects across the fixture set)` | of everything actually wrong out there, how much did you both find AND cite correctly |
-| `false_claim_rate` | `false / adjudicated` | the number that maps straight onto the `-0.8 × weight` penalty below |
-| `f1` | harmonic mean of precision/recall | one number if you need one |
-
-`adjudicated` excludes `rejected` claims (schema-invalid, over quota, or a duplicate — those are a
-bug in your code, not a measurement of detection quality, but they are still counted and reported).
-An `unproven` claim counts toward neither precision's nor recall's numerator — CONTRACTS.md §6.2
-pays it exactly 0 either way, so this mirrors the real economics.
-
-Running the starter (which implements exactly 1 of 17 classes) prints roughly:
-
-```
-precision: 1.000   recall: 0.059   f1: 0.111   false_claim_rate: 0.000
-```
-
-**That shape is correct, not a bug to fix**: perfect precision (it never guesses wrong when it does
-file) and low recall (16 of 17 classes are still stubs). If your own numbers ever show HIGH recall
-before you've implemented anything, something is wrong with your changes — check you did not
-accidentally turn a stub into something that always fires.
-
-## The fixture set — `fixtures/prosecution/labelled/`
-
-40 traces, generated by `fixtures/prosecution/build_fixtures.py` (deterministic — rerun it any time,
-the output is byte-identical): all 17 classes with ≥2 traces each, 6 clean (no-defect) traces, and
-**exactly one near-miss per class** — a trace where the defect is real but the *obvious*-looking
-evidence doesn't actually show it, and the *real* evidence is somewhere else. That distinction is the
-whole difference between `unproven` (0 damage, no penalty) and `verified` (`+weight`) — see
-`tests/test_prosecute.py::test_naive_prosecutor_is_unproven_on_the_near_miss_fixture` for it made
-concrete: a deliberately naive prosecutor (cites the *first* mutation-shaped event, verdict
-unchecked) gets `verified` on the plain positive trace and `unproven` on its near-miss twin.
-
-Full detail on how the fixtures were built and what "ground truth" means here:
-`fixtures/prosecution/build_fixtures.py`'s module docstring.
-
-## The economics — read this before you write a detector
-
-CONTRACTS.md §6.2's outcome table: `verified` earns `+weight × round_scale`; `false` costs
-`−0.8 × weight × round_scale`. Filing blind is +EV exactly when
-
-```
-p(verified) × weight  >  (1 − p(verified)) × 0.8 × weight
-```
-
-which rearranges to `p > 0.8 / 1.8 = 4/9 ≈ 44.4%` — and **`weight` cancels out of both sides**. The
-break-even is **44.4% for every one of the 17 classes**, weight-10 `enforcement_failure` and
-weight-3 `wasteful` alike. There is no weight to shop for.
-
-Contrast a flat penalty (an earlier draft of this game's rule, never shipped): a flat `−4` makes
-blind filing +EV whenever `p > 4/(weight+4)` — **28.6%** for a weight-10 class but **57.1%** for
-weight-3 `wasteful`. Under that scheme, a rational prosecutor would shotgun the heavy classes and
-stay quiet on the light ones. **Under the scheme this lab actually uses, that strategy does not
-work** — every class costs the same conviction confidence to be worth filing. `eval.prosecute`'s
-`__main__` block computes both numbers exactly (as `fractions.Fraction`, never a float) so this is
-demonstrated, not just asserted; `tests/test_prosecute.py` checks it for all 17 classes under both
-schemes.
-
-**The practical rule: file what you can point at a specific event and defend, not what pays the
-most if you happen to be right.**
+Đọc `LAB_REPORT.md` để xem đánh giá toàn bộ lab và `REVIEW_STATUS.md` để xem tình trạng nghiệm thu. Không đưa dấu vết của đội đối thủ cho trợ lý AI trong giải đấu, theo `RULES.md`.
