@@ -140,6 +140,16 @@ _INJECTION_PATTERNS = (
         r"ctx\.act|ctx\.scopes|dữ\s+liệu\s+riêng\s+tư)\b", re.IGNORECASE)),
     ("foreign_write", re.compile(
         r"\b(?:also|instead)\s+record\b.{0,80}\blearner\b", re.IGNORECASE)),
+    ("role_spoof", re.compile(
+        r"(?:\[im_start\]|<\|im_start\|>|\brole\s*[:=]\s*|<system\b[^>]*>)"
+        r"\s*(?:system|developer)?\b", re.IGNORECASE)),
+    ("tool_result_spoof", re.compile(
+        r"\b(?:tool[ _-]?result|tool[ _-]?response)\s+(?:override|replacement|system)\b",
+        re.IGNORECASE)),
+    ("exfiltration", re.compile(
+        r"\b(?:send|upload|forward|gửi|chuyển)\b.{0,100}"
+        r"\b(?:answer\s+key|private|roster|secret|token|dữ\s+liệu\s+riêng)\b",
+        re.IGNORECASE)),
 )
 
 
@@ -168,7 +178,9 @@ class RedactionResult:
 
 _PRIVATE_INLINE = re.compile(
     r"(\b(?:private\s+note|private\s+field|ghi\s+chú\s+riêng\s+tư|"
-    r"dữ\s+liệu\s+riêng\s+tư)\s*(?:reads\s*)?[:：=]?\s*)([^\n]{40,})",
+    r"dữ\s+liệu\s+riêng\s+tư|access\s+token|api\s+key|"
+    r"secret\s+key|password|mật\s+khẩu|khóa\s+bí\s+mật)"
+    r"\s*(?:reads\s*)?[:：=]\s*)([^\r\n]{4,})",
     re.IGNORECASE,
 )
 
@@ -184,7 +196,7 @@ def redact(text: str, *, private_values: Iterable[str] = ()) -> RedactionResult:
     result = text
     hits: list[str] = []
     for private in private_values:
-        if not isinstance(private, str) or len(" ".join(private.split())) < 40:
+        if not isinstance(private, str) or len(" ".join(private.split())) < 4:
             continue
         words = private.split()
         pattern = re.compile(r"\s+".join(re.escape(word) for word in words),
@@ -217,32 +229,63 @@ _EQUATION_RE = re.compile(
 
 
 def verify_arithmetic(text: str, *, source_text: str | None = None) -> ArithmeticCheckResult:
-    """Kiểm tra phép tính hiển thị; nếu có nguồn thì kiểm tra cả số liệu.
+    """Kiểm tra phép tính và sự hiện diện của số liệu.
 
-    Khi chỉ có văn bản với một số liệu mà không có nguồn, trả checked=False,
-    ok=None. Không được biến 'chưa kiểm tra' thành 'đúng'.
+    Không suy ra rằng ý nghĩa của cả câu đã đúng chỉ vì hai câu có cùng
+    con số. Nếu nguồn mô tả giá trị gần đúng, đáp án không được tự nhận
+    giá trị ấy là chính xác. Kết quả checked=False biểu thị chưa đủ
+    chứng cứ, không biểu thị đáp án đúng.
     """
     if not isinstance(text, str):
         return ArithmeticCheckResult(False, None, "no textual answer")
     equations = list(_EQUATION_RE.finditer(text))
+    derived: set[str] = set()
+    source_nums = set(_NUMBER_RE.findall(source_text)) if source_text is not None else set()
+
     for match in equations:
         try:
-            a, b, c = (Decimal(match.group(i)) for i in (1, 3, 4))
-            operator = match.group(2)
-            computed = {"+": lambda: a + b, "-": lambda: a - b,
-                        "*": lambda: a * b, "×": lambda: a * b,
-                        "/": lambda: a / b, "÷": lambda: a / b}[operator]()
-            if computed != c:
-                return ArithmeticCheckResult(True, False, "arithmetic result differs")
+            lhs, rhs, result = (Decimal(match.group(i)) for i in (1, 3, 4))
+            operations = {
+                "+": lambda: lhs + rhs, "-": lambda: lhs - rhs,
+                "*": lambda: lhs * rhs, "×": lambda: lhs * rhs,
+                "/": lambda: lhs / rhs, "÷": lambda: lhs / rhs,
+            }
+            if operations[match.group(2)]() != result:
+                return ArithmeticCheckResult(True, False, "incorrect arithmetic")
         except (InvalidOperation, ZeroDivisionError):
             return ArithmeticCheckResult(True, False, "invalid arithmetic operation")
+        if source_text is not None:
+            if match.group(1) not in source_nums or match.group(3) not in source_nums:
+                return ArithmeticCheckResult(True, False, "operand absent from source")
+            derived.add(match.group(4))
+
     if source_text is not None:
-        claims = _NUMBER_RE.findall(text)
-        supported = set(_NUMBER_RE.findall(source_text))
-        if claims and any(n not in supported for n in claims):
-            return ArithmeticCheckResult(True, False, "numeric value absent from source")
-        if claims:
-            return ArithmeticCheckResult(True, True, "numbers match source text")
+        approximate = re.search(
+            r"\b(?:about|approximately|roughly|around|khoảng|xấp xỉ|gần)\b|~",
+            source_text, re.IGNORECASE)
+        exact = re.search(
+            r"\b(?:exactly|precisely|chính xác|đúng bằng|bằng đúng)\b",
+            text, re.IGNORECASE)
+        if approximate and exact:
+            return ArithmeticCheckResult(True, False, "approximate source stated as exact")
+
+        positive_answer = not re.search(
+            r"\b(?:not|never|không|chưa|didn't|doesn't|isn't)\b",
+            text, re.IGNORECASE)
+        positive_source = not re.search(
+            r"\b(?:not|never|không|chưa|didn't|doesn't|isn't)\b",
+            source_text, re.IGNORECASE)
+        if positive_answer != positive_source:
+            return ArithmeticCheckResult(False, None, "semantic polarity conflict")
+
+        claimed = _NUMBER_RE.findall(text)
+        missing = [number for number in claimed
+                   if number not in source_nums and number not in derived]
+        if missing:
+            return ArithmeticCheckResult(True, False, "numeric claim absent from source")
+        if claimed:
+            return ArithmeticCheckResult(True, True, "numeric values evidenced; wording not verified")
+
     if equations:
         return ArithmeticCheckResult(True, True, "explicit arithmetic verified")
     return ArithmeticCheckResult(False, None, "no checkable arithmetic or source")
