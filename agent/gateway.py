@@ -112,6 +112,12 @@ try:
 except ImportError:  # pragma: no cover - collaborator file
     _canonicalise_action = None
 
+try:
+    from kit.mcp.specs import TOOL_SPECS as _GATE_TOOL_SPECS, cost as _gate_cost
+except ImportError:
+    _GATE_TOOL_SPECS = {}
+    _gate_cost = None
+
 from agent.telemetry import RecordingGatewayContext, Telemetry
 
 __all__ = [
@@ -394,9 +400,10 @@ class Gateway:
         elif (server, tool) == ("glossary", "list_terms") and fields in ((), ("*",)):
             fields = ("term",)
         try:
-            from kit.mcp.specs import TOOL_SPECS, cost as estimated_cost
-            estimate = estimated_cost(server, tool, fields=fields) if (server, tool) in TOOL_SPECS else 2
-        except (ImportError, KeyError, TypeError, ValueError):
+            estimate = (_gate_cost(server, tool, fields=fields)
+                        if _gate_cost is not None and (server, tool) in _GATE_TOOL_SPECS
+                        else 2)
+        except (KeyError, TypeError, ValueError):
             estimate = 4
         if int(getattr(self.ctx, "credits", 0)) < estimate:
             return self.deny(cmd, "not enough credits")

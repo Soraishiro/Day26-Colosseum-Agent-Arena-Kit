@@ -32,13 +32,13 @@
 - Chưa chạy được `make doctor`, `make test`, `make validate`, `make spar` trong môi trường kiểm tra: không có Python 3.12 / bản học liệu thực trên máy công cụ; GitHub Releases của repository hiện trả về danh sách rỗng.
 - Chưa có kết quả chấm đối đầu chính thức. `spar.py` dùng `MockBroker` và không chấm đủ tám lớp lỗi ngữ nghĩa.
 - Chưa kiểm định `precision/recall/F1` trên bộ giữ lại độc lập, chưa đo sai số qua nhiều seed, chưa so sánh với phiên bản trước trên cùng điều kiện.
-- `agent/gateway.py` cần được rà soát và kiểm thử riêng trước khi kết luận phòng thủ hoàn chỉnh.
+- `agent/gateway.py` đã được bổ sung chính sách kiểm tra quyền theo `ctx.act`, xác thực A2A, lease, header ghi và ước tính chi phí; có tám kiểm tra hồi quy tại `agent/test_gateway_regressions.py`. Các kiểm tra này **chưa được chạy trên repository đầy đủ**, nên chưa xác nhận phòng thủ hoàn chỉnh.
 
 ## Lệnh kiểm tra cho máy đã có world
 
 ```bash
 git pull --ff-only origin main
-python3.12 -m unittest eval.test_runtime_regressions -v
+python3.12 -m unittest eval.test_runtime_regressions agent.test_gateway_regressions -v
 make install
 make doctor
 make test
